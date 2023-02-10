@@ -46,7 +46,7 @@ def send_message(bot: telegram.Bot, message: str):
         logging.debug('Сообщение успешно отправлено в Telegram')
     except telegram.error.TelegramError:
         # Вроде все подправил, но с логами error проблемы.
-        # Не пойму это тесты так требуют чтобы именно здесь 
+        # Не пойму это тесты так требуют чтобы именно здесь
         # логи записывались об ошибке или я туплю.
         # Если убираю от сюда 'logging.error' то падают тесты.
         logging.error('Ошибка отправки сообщения в тг')
@@ -114,6 +114,31 @@ def parse_status(homework: Dict[str, Union[str, str]]) -> str:
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
+def status():
+    """Отправляет фото смотря какой статус дз."""
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    timestamp = int(time.time())
+    response = get_api_answer(timestamp)
+    homework_list = check_response(response)
+    homework = homework_list[0]
+    status = homework['status']
+    if status == 'approved':
+        bot.send_photo(
+            chat_id=TELEGRAM_CHAT_ID,
+            photo=open('2.jpeg', 'rb')
+        )
+    elif status == 'rejected':
+        bot.send_photo(
+            chat_id=TELEGRAM_CHAT_ID,
+            photo=open('1.png', 'rb')
+        )
+    else:
+        bot.send_photo(
+            chat_id=TELEGRAM_CHAT_ID,
+            photo=open('3.png', 'rb')
+        )
+
+
 def main():
     """Основная логика работы бота."""
     logging.info('Начали!')
@@ -129,19 +154,9 @@ def main():
             homework_list = check_response(response)
             homework = homework_list[0]
             message = parse_status(homework)
-            status = homework['status']
             send_message(bot, message)
-            if status == 'approved':
-                bot.send_photo(
-                    chat_id=TELEGRAM_CHAT_ID,
-                    photo=open('2.jpeg', 'rb')
-                )
-            if status == 'rejected':
-                bot.send_photo(
-                    chat_id=TELEGRAM_CHAT_ID,
-                    photo=open('1.jpg', 'rb')
-                )
             timestamp = response.get('current_date')
+            status()
         except IndexError:
             logging.info('Обновлений не найдено')
             timestamp = response.get('current_date')
