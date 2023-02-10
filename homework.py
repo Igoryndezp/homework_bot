@@ -5,16 +5,12 @@ import time
 
 import requests
 import telegram
+from http import HTTPStatus
 from dotenv import load_dotenv
+from typing import Dict, List, Union
 
 import exceptions
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s, %(levelname)s, %(message)s, %(name)s',
-    filename='main.log',
-    filemode='w'
-)
 load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -31,7 +27,7 @@ HOMEWORK_VERDICTS = {
 }
 
 
-def check_tokens():
+def check_tokens() -> bool:
     """Функция проверяет доступность переменных окружения.
     Если отсутствует хотя бы одна переменная окружения —
     происходит принудетельный выход из программы
@@ -39,7 +35,7 @@ def check_tokens():
     return all((PRACTICUM_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_TOKEN))
 
 
-def send_message(bot, message):
+def send_message(bot: telegram.Bot, message: str):
     """Функция отправляет сообщение в Telegram чат."""
     try:
         logging.info('Начинаем отправку сообщения!')
@@ -48,12 +44,18 @@ def send_message(bot, message):
             text=message
         )
         logging.debug('Сообщение успешно отправлено в Telegram')
-    except Exception as error:
-        logging.error('Сообщение не отправлено в Telegram')
-        raise exceptions.TelegramError(error)
+    except telegram.error.TelegramError:
+        # Вроде все подправил, но с логами error проблемы.
+        # Не пойму это тесты так требуют чтобы именно здесь 
+        # логи записывались об ошибке или я туплю.
+        # Если убираю от сюда 'logging.error' то падают тесты.
+        logging.error('Ошибка отправки сообщения в тг')
+        raise exceptions.TelegramError(
+            'Ошибка при отправке сообщения телеграм.'
+        )
 
 
-def get_api_answer(timestamp):
+def get_api_answer(timestamp: int) -> Dict[str, Union[str, str]]:
     """Функция делает запрос к эндпоинту API Яндекс.Домашки.
     В случае успешного запроса возвращает ответ API,
     преобразовав его из формата JSON к типам данных Python
@@ -63,14 +65,12 @@ def get_api_answer(timestamp):
         response = requests.get(
             url=ENDPOINT,
             headers=HEADERS,
-            params={"from_date": timestamp}
+            params={'from_date': timestamp}
         )
-        logging.debug("Получен ответ от API")
-    except requests.RequestException as error:
-        logging.error(f"Получена ошибка при запросе {error}")
-        raise exceptions.ApiRequestException("Ошибка при запросе")
-    if response.status_code != 200:
-        logging.error('Ошибка при доступе к API')
+        logging.debug('Получен ответ от API')
+    except requests.RequestException:
+        raise exceptions.ApiRequestException('Ошибка при запросе')
+    if response.status_code != HTTPStatus.OK:
         raise exceptions.InvalidResponseCode(
             'Получена ошибка при доступе к API Яндекс.Домашки. '
             f'status_code {response.status_code}'
@@ -78,7 +78,9 @@ def get_api_answer(timestamp):
     return response.json()
 
 
-def check_response(response):
+def check_response(
+    response: Dict[str, Union[str, str]]
+) -> List[Union[str, str]]:
     """Функция проверяет ответ API на корректность.
     Если ответ API корректен - функция врзвращает список домашних работ
     """
@@ -93,7 +95,7 @@ def check_response(response):
     return homeworks
 
 
-def parse_status(homework):
+def parse_status(homework: Dict[str, Union[str, str]]) -> str:
     """Извлекает из информации о конкретной домашней работе статус этой работы.
     В случае успеха, функция возвращает подготовленную
     для отправки в Telegram строку,
@@ -127,7 +129,18 @@ def main():
             homework_list = check_response(response)
             homework = homework_list[0]
             message = parse_status(homework)
+            status = homework['status']
             send_message(bot, message)
+            if status == 'approved':
+                bot.send_photo(
+                    chat_id=TELEGRAM_CHAT_ID,
+                    photo=open('2.jpeg', 'rb')
+                )
+            if status == 'rejected':
+                bot.send_photo(
+                    chat_id=TELEGRAM_CHAT_ID,
+                    photo=open('1.jpg', 'rb')
+                )
             timestamp = response.get('current_date')
         except IndexError:
             logging.info('Обновлений не найдено')
@@ -152,4 +165,10 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s, %(levelname)s, %(message)s, %(name)s',
+        filename='main.log',
+        filemode='w'
+    )
     main()
