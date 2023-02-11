@@ -2,12 +2,12 @@ import logging
 import os
 import sys
 import time
+from http import HTTPStatus
+from typing import Dict, List, Union
 
 import requests
 import telegram
-from http import HTTPStatus
 from dotenv import load_dotenv
-from typing import Dict, List, Union
 
 import exceptions
 
@@ -45,10 +45,6 @@ def send_message(bot: telegram.Bot, message: str):
         )
         logging.debug('Сообщение успешно отправлено в Telegram')
     except telegram.error.TelegramError:
-        # Вроде все подправил, но с логами error проблемы.
-        # Не пойму это тесты так требуют чтобы именно здесь
-        # логи записывались об ошибке или я туплю.
-        # Если убираю от сюда 'logging.error' то падают тесты.
         logging.error('Ошибка отправки сообщения в тг')
         raise exceptions.TelegramError(
             'Ошибка при отправке сообщения телеграм.'
